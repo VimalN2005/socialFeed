@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16 Primary Database
+  db:
+    image: postgres:16-alpine
+    container_name: scalefeed_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scalefeed_db}
+      POSTGRES_USER: ${POSTGRES_USER:-scalefeed_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scalefeed_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scalefeed_user -d scalefeed_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis 7 Cache, Broker & Pub/Sub
+  redis:
+    image: redis:7-alpine
+    container_name: scalefeed_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy volatile-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Core Django REST Framework Service
+  core_api:
+    build:
+      context: .
+      dockerfile: services/core_drf/Dockerfile
+    container_name: scalefeed_drf
+    restart: unless-stopped
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    environment:
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  # FastAPI Ranking, WebSockets & AI Service
+  ranking_api:
+    build:
+      context: .
+      dockerfile: services/ranking_fastapi/Dockerfile
+    container_name: scalefeed_fastapi
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --workers 2
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+
+  # Celery Asynchronous Event Worker
+  celery_worker:
+    build:
+      context: .
+      dockerfile: services/core_drf/Dockerfile
+    container_name: scalefeed_celery
+    restart: unless-stopped
+    command: celery -A config worker --loglevel=info --concurrency=4
+    environment:
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # NGINX Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: scalefeed_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - core_api
+      - ranking_api
+
+volumes:
+  postgres_data:
+  redis_data:
