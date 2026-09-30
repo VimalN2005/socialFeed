@@ -160,10 +160,10 @@ For the complete architectural rationales and trade-off analyses, check out:
 
 ## 🗺️ Roadmap & Milestones
 
-- [x] **Milestone 1 (Week 1 - 20%):** Core Architecture, HLD/LLD Specs, 20 System Design ADRs, Project Scaffolding, Data Modeling, Keyset Pagination, FastAPI Ranking Stub.
-- [ ] **Milestone 2 (Week 2):** Post & Media CRUD, Follow Graph Optimization, Celery Fan-Out Pipeline.
-- [ ] **Milestone 3 (Week 3):** Redis ZSET Timeline Caching, WebSockets Pub/Sub Dispatcher, AI Caption/Hashtags.
-- [ ] **Milestone 4 (Week 4):** Locust Load Testing Benchmarks, NGINX Production Proxy, CI/CD Pipeline.
+- [x] **Milestone 1 (Week 1 - 25%):** Core Architecture, HLD/LLD Specs, 20 System Design ADRs, Project Scaffolding, Data Modeling, Keyset Pagination, FastAPI Ranking Stub.
+- [x] **Milestone 2 (Week 2 - 50%):** Event-Driven Celery Pipeline, Hybrid Fan-Out Engine (Push vs Pull), Redis ZSET Feed Cache, Asynchronous Post Likes & Notification Dispatch, Follower Feed Backfill, Media Validation, Automated Unit Test Suite.
+- [ ] **Milestone 3 (Week 3 - 75%):** Real-time WebSockets Pub/Sub Dispatcher, AI Smart Hashtags & Sentiment, Feed Ranking Microservice Bridge.
+- [ ] **Milestone 4 (Week 4 - 100%):** Locust Load Testing Benchmarks, EXPLAIN ANALYZE Optimization Proof, NGINX Production Proxy, CI/CD Pipeline.
 
 ---
 

@@ -77,6 +77,13 @@ class FollowUserView(APIView):
             target_user.refresh_from_db(fields=['followers_count'])
             target_user.update_celebrity_status()
 
+        # Asynchronously backfill recent posts into follower's feed
+        from apps.feed.tasks import backfill_follower_feed
+        try:
+            backfill_follower_feed.delay(str(request.user.id), str(target_user.id))
+        except Exception:
+            backfill_follower_feed(str(request.user.id), str(target_user.id))
+
         return Response(
             {"message": f"Successfully followed {target_user.username}."},
             status=status.HTTP_201_CREATED

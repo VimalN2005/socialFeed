@@ -9,11 +9,15 @@ from .models import Post, Like, Comment
 from .serializers import PostSerializer, PostCreateSerializer, CommentSerializer
 from .pagination import CursorPaginationByCreatedAt
 
+from apps.feed.tasks import fanout_post_creation
+from apps.posts.tasks import process_async_like
+
 class PostListCreateView(generics.ListCreateAPIView):
     """
     High-Performance Post List & Create API.
     - Uses CursorPaginationByCreatedAt for keyset seeking.
     - Uses select_related('user') to eliminate N+1 queries.
+    - Triggers Hybrid Fan-out via Celery background tasks.
     """
     pagination_class = CursorPaginationByCreatedAt
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -28,7 +32,11 @@ class PostListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         post = serializer.save(user=self.request.user)
-        # In Week 2, this will trigger the Celery fan-out pipeline
+        try:
+            fanout_post_creation.delay(str(post.id), str(post.user.id), post.user.is_celebrity)
+        except Exception:
+            # Fallback to direct synchronous execution if broker offline
+            fanout_post_creation(str(post.id), str(post.user.id), post.user.is_celebrity)
         return post
 
 
@@ -72,6 +80,14 @@ class LikeToggleView(APIView):
                 liked = False
 
         post.refresh_from_db(fields=['likes_count'])
+
+        # Asynchronously dispatch notification & engagement processing
+        action = "like" if liked else "unlike"
+        try:
+            process_async_like.delay(str(request.user.id), str(post.id), action)
+        except Exception:
+            process_async_like(str(request.user.id), str(post.id), action)
+
         return Response({
             "message": message,
             "liked": liked,
