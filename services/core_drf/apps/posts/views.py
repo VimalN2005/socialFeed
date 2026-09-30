@@ -110,3 +110,20 @@ class CommentListCreateView(generics.ListCreateAPIView):
         post = get_object_or_404(Post, id=self.kwargs.get('post_id'))
         serializer.save(user=self.request.user, post=post)
         Post.objects.filter(id=post.id).update(comments_count=F('comments_count') + 1)
+
+
+class PostAIAnalysisView(APIView):
+    """
+    AI Content Intelligence Pre-publish Endpoint.
+    Analyzes captions, suggests trending hashtags, checks safety & sentiment.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        caption = request.data.get('caption', '')
+        if not caption:
+            return Response({"error": "Caption is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from common.microservice_client import FastAPIMicroserviceClient
+        analysis = FastAPIMicroserviceClient.analyze_caption_ai(caption)
+        return Response(analysis, status=status.HTTP_200_OK)

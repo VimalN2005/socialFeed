@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import UserTimelineFeedView, HybridFeedAnalyticsView
+from .views import UserTimelineFeedView, HybridFeedAnalyticsView, SmartRankedFeedView
 
 urlpatterns = [
     path('timeline/', UserTimelineFeedView.as_view(), name='user_timeline_feed'),
     path('hybrid/', HybridFeedAnalyticsView.as_view(), name='hybrid_feed_analytics'),
+    path('ranked/', SmartRankedFeedView.as_view(), name='smart_ranked_feed'),
 ]
