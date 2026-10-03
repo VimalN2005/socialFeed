@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: scalefeed-app
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: "pip install -r requirements.txt && python services/core_drf/manage.py migrate"
+    startCommand: "gunicorn --chdir services/core_drf config.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DEBUG
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: "*"
