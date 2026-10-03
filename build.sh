@@ -2,9 +2,7 @@
 # Exit on error
 set -o errexit
 
-pip install --upgrade pip
-pip install -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
-cd services/core_drf
-python manage.py collectstatic --no-input || true
-python manage.py migrate
+python services/core_drf/manage.py collectstatic --no-input || true
+python services/core_drf/manage.py migrate

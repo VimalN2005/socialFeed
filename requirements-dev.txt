@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8.0.0
+pytest-django>=4.8.0
+locust>=2.24.0
