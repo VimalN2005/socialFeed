@@ -97,6 +97,34 @@ else:
         }
     }
 
+# Read Replica Configuration (Azure Database for PostgreSQL Flexible Server Read Replicas)
+DATABASE_REPLICA_URL = os.getenv('DATABASE_REPLICA_URL')
+POSTGRES_REPLICA_HOST = os.getenv('POSTGRES_REPLICA_HOST')
+
+if DATABASE_REPLICA_URL:
+    rep_url = urllib.parse.urlparse(DATABASE_REPLICA_URL)
+    DATABASES['replica'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': rep_url.path[1:],
+        'USER': rep_url.username,
+        'PASSWORD': rep_url.password,
+        'HOST': rep_url.hostname,
+        'PORT': rep_url.port or '5432',
+    }
+elif POSTGRES_REPLICA_HOST and 'default' in DATABASES and DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
+    DATABASES['replica'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': DATABASES['default']['NAME'],
+        'USER': DATABASES['default']['USER'],
+        'PASSWORD': DATABASES['default']['PASSWORD'],
+        'HOST': POSTGRES_REPLICA_HOST,
+        'PORT': os.getenv('POSTGRES_REPLICA_PORT', '5432'),
+    }
+
+# Primary/Replica Router (Routes writes to default, reads load-balanced to replicas)
+DATABASE_ROUTERS = ['common.db_router.PrimaryReplicaRouter']
+
+
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
