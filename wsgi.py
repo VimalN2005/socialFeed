@@ -13,3 +13,10 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
 app = application
+
+# Auto-run database migrations on boot so tables exist without manual commands
+try:
+    from django.core.management import call_command
+    call_command('migrate', interactive=False)
+except Exception as e:
+    print(f"Startup migration notice: {e}")
