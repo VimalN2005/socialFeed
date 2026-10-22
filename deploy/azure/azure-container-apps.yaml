@@ -1,0 +1,67 @@
+# ==============================================================================
+# Azure Container Apps Specification for ScaleFeed Production
+# Includes Managed Environment, PgBouncer-enabled Postgres, Redis, and KEDA
+# ==============================================================================
+
+apiVersion: 2023-05-01
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/scalefeed-rg/providers/Microsoft.App/managedEnvironments/scalefeed-env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 80
+      transport: auto
+      traffic:
+        - latestRevision: true
+          weight: 100
+    secrets:
+      - name: database-url
+        value: "postgres://scalefeed_admin:${POSTGRES_PASSWORD}@scalefeed-pg.postgres.database.azure.com:6432/scalefeed?sslmode=require"
+      - name: database-replica-url
+        value: "postgres://scalefeed_admin:${POSTGRES_PASSWORD}@scalefeed-pg-replica.postgres.database.azure.com:6432/scalefeed?sslmode=require"
+      - name: redis-url
+        value: "rediss://:${AZURE_REDIS_KEY}@scalefeed-cache.redis.cache.windows.net:6380/0"
+  template:
+    containers:
+      # 1. Django REST Framework Container (Write Path: Auth, Follows, Post CRUD)
+      - image: scalefeedacr.azurecr.io/scalefeed-core:latest
+        name: scalefeed-drf-core
+        resources:
+          cpu: 1.0
+          memory: 2.0Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: DATABASE_REPLICA_URL
+            secretRef: database-replica-url
+          - name: REDIS_HOST
+            value: "scalefeed-cache.redis.cache.windows.net"
+          - name: REDIS_PORT
+            value: "6380"
+          - name: DJANGO_SETTINGS_MODULE
+            value: "config.settings"
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /api/v1/posts/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
+      # 2. FastAPI Container (Read Path: Min-Heap Ranking & Real-time WebSockets)
+      - image: scalefeedacr.azurecr.io/scalefeed-fastapi:latest
+        name: scalefeed-fastapi-gateway
+        resources:
+          cpu: 1.0
+          memory: 2.0Gi
+        env:
+          - name: REDIS_URL
+            secretRef: redis-url
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 15
