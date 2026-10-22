@@ -180,3 +180,13 @@ CELERY_TASK_ACKS_LATE = True
 
 # Celebrity Threshold for Hybrid Fan-out
 CELEBRITY_FOLLOWER_THRESHOLD = int(os.getenv('CELEBRITY_FOLLOWER_THRESHOLD', 25000))
+
+# Celery Beat Periodic Tasks (Cache Warming Pipeline & Inactive User Pruning)
+CELERY_BEAT_SCHEDULE = {
+    'warm-up-active-timelines-every-30-mins': {
+        'task': 'apps.feed.tasks.warm_up_active_user_timelines_task',
+        'schedule': 1800.0,  # Run every 30 minutes (1800s)
+        'kwargs': {'activity_window_hours': 24, 'max_users': 500},
+    },
+}
+

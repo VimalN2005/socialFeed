@@ -100,3 +100,46 @@ def backfill_follower_feed(follower_id: str, followed_id: str):
     except Exception as e:
         logger.error("Backfill failed for follower %s: %s", follower_id, str(e))
         return {"status": "error", "message": str(e)}
+
+
+@shared_task(name="apps.feed.tasks.warm_up_active_user_timelines_task")
+def warm_up_active_user_timelines_task(activity_window_hours: int = 24, max_users: int = 500):
+    """
+    Proactive Cache Warming Task (Run via Celery Beat every 30 minutes).
+    Identifies high-engagement users who were active within the last 24h
+    whose Redis timeline (ZSET) has expired or is empty.
+    Pre-compiles their feed from the DB and warms Redis cache ahead of time,
+    eliminating expensive cache miss latency when users open the app.
+    """
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=activity_window_hours)
+    
+    # Fetch recently active users whose cache might be cold
+    active_users = User.objects.filter(last_login__gte=cutoff).order_by('-last_login')[:max_users]
+    warmed_count = 0
+
+    for user in active_users:
+        user_id_str = str(user.id)
+        # Check if timeline cache is cold in Redis
+        current_cached_count = len(redis_manager.get_user_feed_post_ids(user_id_str, start=0, stop=5))
+        
+        if current_cached_count == 0:
+            # Cache miss predicted: Warm up timeline from followed users
+            following_ids = list(Follow.objects.filter(follower=user).values_list('followed_id', flat=True))
+            following_ids.append(user.id)
+
+            recent_posts = (
+                Post.objects.filter(user_id__in=following_ids)
+                .order_by('-created_at')[:50]
+            )
+
+            for post in recent_posts:
+                score = post.created_at.timestamp()
+                redis_manager.add_to_user_feed(user_id_str, str(post.id), score)
+
+            redis_manager.trim_user_feed(user_id_str, max_size=500)
+            warmed_count += 1
+
+    logger.info("Proactive cache warming complete: %d user timelines warmed.", warmed_count)
+    return {"status": "success", "timelines_warmed": warmed_count}
+
